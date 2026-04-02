@@ -1,0 +1,56 @@
+name: Test Report Generation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # Job 2: Backend Unit Tests
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore src/App.slnx
+
+      - name: Build unit test projects
+        run: dotnet build src/App.slnx --no-restore --configuration Release /p:TreatWarningsAsErrors=false
+
+      - name: Run unit tests
+        timeout-minutes: 5
+        run: >
+          dotnet test src/App.slnx
+          --no-build
+          --configuration Release
+          --results-directory ./TestResults/
+          --collect:"XPlat Code Coverage"
+
+      - name: Setup Allure CLI
+        run: npm install -g allure-commandline
+
+      - name: Generate Allure Report
+        run: allure generate src/allure-results -o reports/unit-tests --clean
+        if: always()
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./reports
+          force_orphan: true
